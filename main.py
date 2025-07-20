@@ -13,7 +13,12 @@ from modules.line_delay_animation import line_delay_animation
 from modules.press_enter_to_continue import press_enter_to_continue
 
 ''' IMPORTS '''
-import requests
+import requests, os
+from dotenv import load_dotenv
+
+load_dotenv() # load .env file
+
+API_KEY= os.getenv('TMDB_API_KEY') # get API key
 
 class Menu:
     ''' ATTRIBUTES '''
@@ -22,7 +27,7 @@ class Menu:
 
     HEADERS = {
         "accept": "application/json",
-        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI1MTk2NmZmOGRlYzA2MzVjYTc0MDQ5ZGFlNjllNTc3OSIsIm5iZiI6MTc1MDM0NDk0Mi43Nywic3ViIjoiNjg1NDI0ZWVhNTkyNTdiODUyOTU1YjUxIiwic2NvcGVzIjpbImFwaV9yZWFkIl0sInZlcnNpb24iOjF9.l4gLE-NqE__Bd_WQVtTtO8CtiJP8TQ8CJ5ZrHNE7VXk"
+        "Authorization": f"Bearer {API_KEY}"
     }
 
     function_list = {
