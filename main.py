@@ -52,7 +52,7 @@ class Menu:
         else:
             print(f"Authentication failed: {response.status_code}")
 
-    def fetch_movies(self, category, page):
+    def fetch_movies_by_category(self, category, page):
         response = requests.get(
             f"{self.URL}/movie/{category}",
             headers=self.HEADERS,
@@ -60,37 +60,60 @@ class Menu:
             )
         
         return response.json() if response.status_code == 200 else None
+    
+    def fetch_movies_by_genre(self, genre_id, page):
+        response = requests.get(
+            f"{self.URL}/discover/movie",
+            headers=self.HEADERS,
+            params={
+                'with_genres': genre_id,
+                'page': page
+            }
+        )
 
-    def view_movies(self, category='popular') -> None:
-        current_page:int = 1
+        return response.json() if response.status_code == 200 else None
+
+    ''' OPERATIONS '''
+    def view_movies(self, category_index=1) -> None:  
+        genre_list = { 1: 'popular', 2: 'top_rated', 3: 'upcoming', 4: 'now_playing', 5: 'latest' }
+        current_page:int = 1 
+        category:str = genre_list[category_index]
         
         while True:
-            response = self.fetch_movies(category, current_page)
+            response = self.fetch_movies_by_category(category, current_page)
 
             if response is None:
                 error_message("Failed to fetch movies", 2)
                 return
             
-            # show page 1 list of popular movies
             movies=response.get('results', [])
 
+            # show header
             clear_screen()
             category_display = category.replace('_', ' ').title()
-            line_delay_animation(f"[ List of {category_display} Movies ]", 0.01)
-            display_format('#', 19 + len(category_display))
+            header_length:int = 19 + len(category_display)
+            space_length:int = int(((header_length - len(category) - 6) / 2))
 
+            line_delay_animation(f"[ List of {category_display} Movies ]", 0.01)
+            display_format('#', header_length)
+            line_delay_animation(f"[^]{' ' * space_length}{category_display}{' ' * space_length}[v]", 0.01)
+            display_format('#', header_length)
+
+            # show movies list
             counter:int = 1 + 20 * (current_page - 1)
             for movie in movies[:20]:
                 line_delay_animation(f"[{counter}] {movie['title']}", 0.01)
                 counter += 1
 
-            navigation_bar:str = f"[<] {current_page - 1}       [{current_page}]       {current_page + 1} [>]"
+            # show navigation bar
+            navigation_bar:str = f"[<] {' ' if current_page == 1 else current_page - 1}       [{current_page}]       {current_page + 1} [>]"
             display_format('#', len(navigation_bar))
             line_delay_animation(navigation_bar, 0.01)
+            display_format('#', len(navigation_bar))
 
             while True:
-                pressed = keyboard.read_key()
-
+                pressed = keyboard.read_key() # listen for key event
+                
                 # Press [<] - Move one page down
                 if pressed == 'left' and current_page > 1:
                     current_page -= 1
@@ -99,13 +122,117 @@ class Menu:
                 if pressed == 'right':
                     current_page += 1
                     break
+                if pressed == 'up':
+                    if category_index > 1:
+                        category_index -= 1
+                        category=genre_list[category_index]
+                        break
+                if pressed == 'down':
+                    if category_index < 5:
+                        category_index += 1
+                        category=genre_list[category_index]
+                    break
                 # Press ESC - Return to main menu
                 elif pressed == 'esc':
                     return
                 
-    def filter_by_genre(self) -> None:
-        print("filtering by genre...")
-        input()
+    def filter_by_genre(self, genre_index=28) -> None:
+        current_page:int = 1
+        counter:int = 1
+
+        genre_list = {
+            28: "Action",
+            12: "Adventure",
+            16: "Animation",
+            35: "Comedy",
+            80: "Crime",
+            99: "Documentary",
+            18: "Drama",
+            10751: "Family",
+            14: "Fantasy",
+            36: "History",
+            27: "Horror",
+            10402: "Music",
+            9648: "Mystery",
+            10749: "Romance",
+            878: "Science Fiction",
+            10770: "TV Movie",
+            53: "Thriller",
+            10752: "War",
+            37: "Western"
+        }
+
+        # map genre ids and names
+        genre_ids = list(genre_list.keys())
+        genre_names = list(genre_list.values())
+
+        while True:
+            # display header
+            line_delay_animation(f"[ Filter by Genre ]", 0.01)
+            display_format('#', 19)
+
+            # display genre list
+            for index, name in enumerate(genre_names, start=1):
+                line_delay_animation(f"[{index}] {name}", 0.05)
+
+            try:
+                genre_choice = int(input(">> ").strip())                
+                if genre_choice < 1 or genre_choice > len(genre_list):
+                    error_message("Invalid input, please enter a valid genre choice", 2)
+                
+            except ValueError as e:
+                error_message(e, 2)
+                return
+
+            selected_genre_id = genre_ids[genre_choice - 1]
+            selected_genre_name = genre_list[selected_genre_id]
+            
+            while True:
+                response = self.fetch_movies_by_genre(selected_genre_id, current_page)
+ 
+                if response is None:
+                    error_message("Failed to fetch movies", 2)
+                    return
+                
+                movies = response.get('results', [])
+                    
+                # show header
+                clear_screen()
+                header_length:int = 19 + len(selected_genre_name)
+                space_length:int = int(((header_length - len(selected_genre_name) - 6) / 2))
+
+                line_delay_animation(f"[ List of {selected_genre_name} Movies ]", 0.01)
+                display_format('#', header_length)
+
+                # show movies list from specified genre
+                counter:int = 1 + 20 * (current_page - 1)
+                for movie in movies[:20]:
+                    line_delay_animation(f"[{counter}] {movie['title']}", 0.01)
+                    counter += 1
+
+                # show navigation bar
+                navigation_bar:str = f"[<] {' ' if current_page == 1 else current_page - 1}       [{current_page}]       {current_page + 1} [>]"
+                display_format('#', len(navigation_bar))
+                line_delay_animation(navigation_bar, 0.01)
+                display_format('#', len(navigation_bar))
+
+                while True:
+                    pressed = keyboard.read_key() # listen for key event
+                    
+                    # Press [<] - Move one page down
+                    if pressed == 'left' and current_page > 1:
+                        current_page -= 1
+                        break
+                    # Press [>] - Move one page up
+                    if pressed == 'right':
+                        current_page += 1
+                        break
+                    # Press ESC - Return to main menu
+                    elif pressed == 'esc':
+                        return
+                    input()
+
+        
 
     def recommend_movie_by_genre(self) -> None:
         print("recommending movie by genre...")
@@ -135,10 +262,10 @@ class Menu:
                 display_format('#', 28)
 
                 try:
-                    user_choice = int(input('>> ').strip())
+                    pressed = keyboard.read_key() # listen for key events
                     
-                    if user_choice not in self.function_list.keys():
-                        error_message("Invalid input, choice does not exist", 2)
+                    if pressed not in [str(i) for i in range(1, 7)]:
+                        error_message("Invalid input, please enter a valid choice", 2)
                     else:
                         clear_screen()
                         break
@@ -147,8 +274,8 @@ class Menu:
                     error_message(f": {e}", 2)
 
             # invoke function based on mapped function list 
-            if hasattr(self, self.function_list[user_choice]):
-                method = getattr(self, self.function_list[user_choice])
+            if hasattr(self, self.function_list[int(pressed)]):
+                method = getattr(self, self.function_list[int(pressed)])
                 method()
 
     
