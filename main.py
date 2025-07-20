@@ -13,7 +13,7 @@ from modules.line_delay_animation import line_delay_animation
 from modules.press_enter_to_continue import press_enter_to_continue
 
 ''' IMPORTS '''
-import requests, os
+import requests, os, keyboard
 from dotenv import load_dotenv
 
 load_dotenv() # load .env file
@@ -23,7 +23,7 @@ API_KEY= os.getenv('TMDB_API_KEY') # get API key
 class Menu:
     ''' ATTRIBUTES '''
     # TMDB API
-    URL = "https://api.themoviedb.org/3/authentication"
+    URL = "https://api.themoviedb.org/3"
 
     HEADERS = {
         "accept": "application/json",
@@ -41,7 +41,7 @@ class Menu:
 
     ''' METHODS '''
     def authenticate(self):
-        response = requests.get(self.URL, headers=self.HEADERS)
+        response = requests.get(f"{self.URL}/authentication", headers=self.HEADERS)
 
         if response.status_code == 200:
             print('Authentication successful!')
@@ -52,18 +52,69 @@ class Menu:
         else:
             print(f"Authentication failed: {response.status_code}")
 
-    def view_movies(self) -> None:
-        print("viewing movies...")
-        input()
+    def fetch_movies(self, category, page):
+        response = requests.get(
+            f"{self.URL}/movie/{category}",
+            headers=self.HEADERS,
+            params={'page': page}
+            )
+        
+        return response.json() if response.status_code == 200 else None
+
+    def view_movies(self, category='popular') -> None:
+        current_page:int = 1
+        
+        while True:
+            response = self.fetch_movies(category, current_page)
+
+            if response is None:
+                error_message("Failed to fetch movies", 2)
+                return
+            
+            # show page 1 list of popular movies
+            movies=response.get('results', [])
+
+            clear_screen()
+            category_display = category.replace('_', ' ').title()
+            line_delay_animation(f"[ List of {category_display} Movies ]", 0.01)
+            display_format('#', 19 + len(category_display))
+
+            counter:int = 1 + 20 * (current_page - 1)
+            for movie in movies[:20]:
+                line_delay_animation(f"[{counter}] {movie['title']}", 0.01)
+                counter += 1
+
+            navigation_bar:str = f"[<] {current_page - 1}       [{current_page}]       {current_page + 1} [>]"
+            display_format('#', len(navigation_bar))
+            line_delay_animation(navigation_bar, 0.01)
+
+            while True:
+                pressed = keyboard.read_key()
+
+                # Press [<] - Move one page down
+                if pressed == 'left' and current_page > 1:
+                    current_page -= 1
+                    break
+                # Press [>] - Move one page up
+                if pressed == 'right':
+                    current_page += 1
+                    break
+                # Press ESC - Return to main menu
+                elif pressed == 'esc':
+                    return
+                
     def filter_by_genre(self) -> None:
         print("filtering by genre...")
         input()
+
     def recommend_movie_by_genre(self) -> None:
         print("recommending movie by genre...")
         input()
+
     def search_movie_by_title(self) -> None:
         print("searching movie by title...")
         input()
+
     def movie_leaderboards(self) -> None:
         print("displaying movie leaderboards...")
         input()
@@ -89,6 +140,7 @@ class Menu:
                     if user_choice not in self.function_list.keys():
                         error_message("Invalid input, choice does not exist", 2)
                     else:
+                        clear_screen()
                         break
 
                 except ValueError as e:
