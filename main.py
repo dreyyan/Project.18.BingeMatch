@@ -73,6 +73,48 @@ class Menu:
 
         return response.json() if response.status_code == 200 else None
 
+    def fetch_movie_by_title(self, query):
+        response = requests.get(
+            f"{self.URL}/search/movie",
+            headers=self.HEADERS,
+            params={'query': query}
+        )
+
+        if response.status_code == 200:
+            return response.json().get('results', [])
+        else:
+            return []
+        
+    def fetch_leaderboards(self):
+        popular = requests.get(
+            f"{self.URL}/movie/popular",
+            headers=self.HEADERS
+        )
+        top_rated = requests.get(
+            f"{self.URL}/movie/top_rated",
+            headers=self.HEADERS
+        )
+        trending_day = requests.get(
+            f"{self.URL}/trending/movie/day",
+            headers=self.HEADERS
+        )
+        trending_week = requests.get(
+            f"{self.URL}/trending/movie/week",
+            headers=self.HEADERS
+        )
+
+        popular_movies = popular.json().get('results', [])
+        top_rated_movies = top_rated.json().get('results', [])
+        trending_day_movies = trending_day.json().get('results', [])
+        trending_week_movies = trending_week.json().get('results', [])
+
+        return {
+            "Popular": popular_movies,
+            "Top Rated": top_rated_movies,
+            "Trending Today": trending_day_movies,
+            "Trending This Week": trending_week_movies
+        }
+
     ''' OPERATIONS '''
     def view_movies(self, category_index=1) -> None:  
         genre_list = { 1: 'popular', 2: 'top_rated', 3: 'upcoming', 4: 'now_playing', 5: 'latest' }
@@ -123,11 +165,13 @@ class Menu:
                     current_page += 1
                     break
                 if pressed == 'up':
+                    current_page = 1 # reset page
                     if category_index > 1:
                         category_index -= 1
                         category=genre_list[category_index]
                         break
                 if pressed == 'down':
+                    current_page = 1 # reset page
                     if category_index < 5:
                         category_index += 1
                         category=genre_list[category_index]
@@ -175,8 +219,12 @@ class Menu:
             for index, name in enumerate(genre_names, start=1):
                 line_delay_animation(f"[{index}] {name}", 0.05)
 
+            line_delay_animation(f"[20] << Back", 0.05)
+
             try:
-                genre_choice = int(input(">> ").strip())                
+                genre_choice = int(input(">> ").strip())
+                if genre_choice == 20: # return to menu
+                    return
                 if genre_choice < 1 or genre_choice > len(genre_list):
                     error_message("Invalid input, please enter a valid genre choice", 2)
                 
@@ -228,23 +276,129 @@ class Menu:
                         current_page += 1
                         break
                     # Press ESC - Return to main menu
-                    elif pressed == 'esc':
+                    if pressed == 'esc':
                         return
                     input()
-
-        
 
     def recommend_movie_by_genre(self) -> None:
         print("recommending movie by genre...")
         input()
 
     def search_movie_by_title(self) -> None:
-        print("searching movie by title...")
-        input()
+        while True:
+            line_delay_animation('[ Search Movie by Title ]', 0.01)
+            display_format('#', 25)
+            search_query = input("Search for: ").strip()
+            movies = self.fetch_movie_by_title(search_query)
+
+            if movies is None:
+                error_message("No movies found.", 2)
+
+            clear_screen()
+            line_delay_animation('[ Search Movie by Title ]', 0.01)
+            display_format('#', 25) 
+            line_delay_animation("#    Search Results:    #", 0.01)
+            display_format('#', 25)
+
+            # display top 10 search results
+            for idx, movie in enumerate(movies[:10], start=1):  # Limit to first 10 results
+                line_delay_animation(f"[{idx}] {movie.get('title', 'N/A')} ({movie.get('release_date', 'N/A')})", 0.1)
+
+            line_delay_animation(f"[11] << Back", 0.05)
+            display_format('#', 25)
+
+            while True:
+                try:
+                    selection = int(input(">> ").strip())
+
+                    if selection == 11: # return to main menu
+                        return
+                    if selection not in [x for x in range(1, 11)]:
+                        error_message("Invalid input, please enter a valid movie choice", 3)
+
+                    else:
+                        selected_movie = movies[selection - 1]
+                        break
+
+                except ValueError as e:
+                    error_message(e, 2)
+
+            # display movie details
+            clear_screen()
+            line_delay_animation(f"[ {selected_movie.get('title', 'N/A')} ]", 0.01)
+            
+            print(f"Overview     : {selected_movie.get('overview', 'N/A')}")
+            print(f"Release Date : {selected_movie.get('release_date', 'N/A')}")
+            print(f"Language     : {selected_movie.get('original_language', 'N/A')}")
+            print(f"Popularity   : {selected_movie.get('popularity', 'N/A')}")
+            print(f"Vote Average : {selected_movie.get('vote_average', 'N/A')}")
+            print(f"Vote Count   : {selected_movie.get('vote_count', 'N/A')}")
+            print(f"Genres (IDs)  : {selected_movie.get('genre_ids', [])}")
+            
+            while True:
+                pressed = keyboard.read_key() # listen for key event
+                
+                # Press ESC - Return to main menu
+                if pressed == 'esc':
+                    clear_screen()
+                    break
 
     def movie_leaderboards(self) -> None:
-        print("displaying movie leaderboards...")
-        input()
+        while True:
+            leaderboards = self.fetch_leaderboards()
+
+            if leaderboards is None:
+                error_message("Failed to fetch movies", 2)
+                return
+            
+            top_3_popular = leaderboards["Popular"][:3]
+            top_3_rated = leaderboards["Top Rated"][:3]
+            top_3_trending_daily = leaderboards["Trending Today"][:3]
+            top_3_trending_weekly = leaderboards["Trending This Week"][:3]
+
+            # show header
+            clear_screen()
+            header_length:int = 26
+            counter:int = 1
+
+            categories = [
+                "Popular Movies",
+                "Rated Movies",
+                "Trending(Daily)",
+                "Trending(Weekly)"
+            ]
+
+            top_lists = [
+                top_3_popular,
+                top_3_rated,
+                top_3_trending_daily,
+                top_3_trending_weekly
+            ]
+
+            line_delay_animation(f"{5 * ' '}[ LEADERBOARDS ]", 0.05)
+            display_format('#', header_length)
+
+            for category, top_movies in zip(categories, top_lists):
+                line_delay_animation(f"[ Top 3 {category} ]", 0.05)
+                for idx, movie in enumerate(top_movies, start=1):
+                    line_delay_animation(f"[{idx}] {movie.get('title', 'N/A')}", 0.05)
+                display_format('#', header_length)
+
+            print("[ESC] Return")
+
+            while True:
+                pressed = keyboard.read_key() # listen for key event
+                
+                # Press ESC - Return to main menu
+                if pressed == 'esc':
+                    clear_screen()
+                    return
+
+            
+    def exit(self):
+        line_delay_animation("exiting system...", 0.2)
+        delay(2)
+        exit(0)
 
     def display_main_menu(self) -> None:
         while True:
@@ -262,9 +416,9 @@ class Menu:
                 display_format('#', 28)
 
                 try:
-                    pressed = keyboard.read_key() # listen for key events
+                    user_choice = int(input(">> ").strip())
                     
-                    if pressed not in [str(i) for i in range(1, 7)]:
+                    if user_choice not in [i for i in range(1, 7)]:
                         error_message("Invalid input, please enter a valid choice", 2)
                     else:
                         clear_screen()
@@ -274,8 +428,8 @@ class Menu:
                     error_message(f": {e}", 2)
 
             # invoke function based on mapped function list 
-            if hasattr(self, self.function_list[int(pressed)]):
-                method = getattr(self, self.function_list[int(pressed)])
+            if hasattr(self, self.function_list[user_choice]):
+                method = getattr(self, self.function_list[user_choice])
                 method()
 
     
