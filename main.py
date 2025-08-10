@@ -3,7 +3,6 @@ from modules.character_delay_animation import character_delay_animation
 from modules.clear_screen import clear_screen
 from modules.display_format import display_format
 from modules.delay import delay
-from modules.display_format import display_format
 from modules.display_function import display_function
 from modules.display_header import display_header
 from modules.display_line import display_line
@@ -233,6 +232,8 @@ class Menu:
                 line_delay_animation(f"[{counter}] {movie['title']}", 0.01)
                 counter += 1
 
+            print("(ESC) Return")
+
             # show navigation bar
             navigation_bar:str = f"[<] {' ' if current_page == 1 else current_page - 1}       [{current_page}]       {current_page + 1} [>]"
             display_format('#', len(navigation_bar))
@@ -305,7 +306,7 @@ class Menu:
             for index, name in enumerate(genre_names, start=1):
                 line_delay_animation(f"[{index}] {name}", 0.05)
 
-            line_delay_animation(f"[20] << Back", 0.05)
+            line_delay_animation(f"[20] Back", 0.05)
 
             try:
                 genre_choice = int(input(">> ").strip())
@@ -520,5 +521,5 @@ class Menu:
 
     
 main = Menu()
-# main.authenticate()
-main.create_dataset()
+main.authenticate()
+# main.create_dataset()
