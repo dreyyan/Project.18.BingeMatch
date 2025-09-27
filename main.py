@@ -221,15 +221,15 @@ class Menu:
             header_length:int = 19 + len(category_display)
             space_length:int = int(((header_length - len(category) - 6) / 2))
 
-            line_delay_animation(f"[ List of {category_display} Movies ]", 0.01)
+            print(f"[ List of {category_display} Movies ]")
             display_format('#', header_length)
-            line_delay_animation(f"[^]{' ' * space_length}{category_display}{' ' * space_length}[v]", 0.01)
+            print(f"[^]{' ' * space_length}{category_display}{' ' * space_length}[v]")
             display_format('#', header_length)
 
             # show movies list
             counter:int = 1 + 20 * (current_page - 1)
             for movie in movies[:20]:
-                line_delay_animation(f"[{counter}] {movie['title']}", 0.01)
+                print(f"[{counter}] {movie['title']}", )
                 counter += 1
 
             print("(ESC) Return")
@@ -237,7 +237,7 @@ class Menu:
             # show navigation bar
             navigation_bar:str = f"[<] {' ' if current_page == 1 else current_page - 1}       [{current_page}]       {current_page + 1} [>]"
             display_format('#', len(navigation_bar))
-            line_delay_animation(navigation_bar, 0.01)
+            print(navigation_bar)
             display_format('#', len(navigation_bar))
 
             while True:
@@ -299,14 +299,14 @@ class Menu:
 
         while True:
             # display header
-            line_delay_animation(f"[ Filter by Genre ]", 0.01)
+            print(f"[ Filter by Genre ]")
             display_format('#', 19)
 
             # display genre list
             for index, name in enumerate(genre_names, start=1):
-                line_delay_animation(f"[{index}] {name}", 0.05)
+                print(f"[{index}] {name}")
 
-            line_delay_animation(f"[20] Back", 0.05)
+            print(f"[20] Back")
 
             try:
                 genre_choice = int(input(">> ").strip())
@@ -336,19 +336,21 @@ class Menu:
                 header_length:int = 19 + len(selected_genre_name)
                 space_length:int = int(((header_length - len(selected_genre_name) - 6) / 2))
 
-                line_delay_animation(f"[ List of {selected_genre_name} Movies ]", 0.01)
+                print(f"[ List of {selected_genre_name} Movies ]")
                 display_format('#', header_length)
 
                 # show movies list from specified genre
                 counter:int = 1 + 20 * (current_page - 1)
                 for movie in movies[:20]:
-                    line_delay_animation(f"[{counter}] {movie['title']}", 0.01)
+                    print(f"[{counter}] {movie['title']}")
                     counter += 1
+
+                print(f"(ESC) Return")
 
                 # show navigation bar
                 navigation_bar:str = f"[<] {' ' if current_page == 1 else current_page - 1}       [{current_page}]       {current_page + 1} [>]"
                 display_format('#', len(navigation_bar))
-                line_delay_animation(navigation_bar, 0.01)
+                print(navigation_bar)
                 display_format('#', len(navigation_bar))
 
                 while True:
@@ -373,7 +375,7 @@ class Menu:
 
     def search_movie_by_title(self) -> None:
         while True:
-            line_delay_animation('[ Search Movie by Title ]', 0.01)
+            print('[ Search Movie by Title ]')
             display_format('#', 25)
             search_query = input("Search for: ").strip()
             movies = self.fetch_movie_by_title(search_query)
@@ -382,16 +384,16 @@ class Menu:
                 error_message("No movies found.", 2)
 
             clear_screen()
-            line_delay_animation('[ Search Movie by Title ]', 0.01)
+            print('[ Search Movie by Title ]')
             display_format('#', 25) 
-            line_delay_animation("#    Search Results:    #", 0.01)
+            print("#    Search Results:    #")
             display_format('#', 25)
 
             # display top 10 search results
             for idx, movie in enumerate(movies[:10], start=1):  # Limit to first 10 results
-                line_delay_animation(f"[{idx}] {movie.get('title', 'N/A')} ({movie.get('release_date', 'N/A')})", 0.1)
+                print(f"[{idx}] {movie.get('title', 'N/A')} ({movie.get('release_date', 'N/A')})")
 
-            line_delay_animation(f"[11] << Back", 0.05)
+            print(f"[11] << Back")
             display_format('#', 25)
 
             while True:
@@ -412,7 +414,7 @@ class Menu:
 
             # display movie details
             clear_screen()
-            line_delay_animation(f"[ {selected_movie.get('title', 'N/A')} ]", 0.01)
+            print(f"[ {selected_movie.get('title', 'N/A')} ]")
             
             print(f"Overview     : {selected_movie.get('overview', 'N/A')}")
             print(f"Release Date : {selected_movie.get('release_date', 'N/A')}")
@@ -462,16 +464,16 @@ class Menu:
                 top_3_trending_weekly
             ]
 
-            line_delay_animation(f"{5 * ' '}[ LEADERBOARDS ]", 0.05)
+            print(f"{5 * ' '}[ LEADERBOARDS ]")
             display_format('#', header_length)
 
             for category, top_movies in zip(categories, top_lists):
-                line_delay_animation(f"[ Top 3 {category} ]", 0.05)
+                print(f"[ Top 3 {category} ]")
                 for idx, movie in enumerate(top_movies, start=1):
-                    line_delay_animation(f"[{idx}] {movie.get('title', 'N/A')}", 0.05)
+                    print(f"[{idx}] {movie.get('title', 'N/A')}")
                 display_format('#', header_length)
 
-            print("[ESC] Return")
+            print("(ESC) Return")
 
             while True:
                 pressed = keyboard.read_key() # listen for key event
