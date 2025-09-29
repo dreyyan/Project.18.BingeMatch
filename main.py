@@ -151,7 +151,7 @@ class Menu:
                     page += 1
                     break  # Exit retry loop after success
 
-                except ReadTimeout:
+                except requests.ReadTimeout:
                     retries += 1
                     print(f"[TIMEOUT] Read timed out on page {page}. Retrying... ({retries}/{max_retries})")
                     delay(5)
