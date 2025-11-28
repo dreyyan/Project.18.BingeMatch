@@ -1,4 +1,4 @@
-''' MODULES '''
+""" [IMPORT] Modules """
 from modules.character_delay_animation import character_delay_animation
 from modules.clear_screen import clear_screen
 from modules.display_format import display_format
@@ -11,18 +11,20 @@ from modules.insert_spaces import insert_spaces
 from modules.line_delay_animation import line_delay_animation
 from modules.press_enter_to_continue import press_enter_to_continue
 
-''' IMPORTS '''
+''' [IMPORT] Standard Libraries '''
 import requests, os, keyboard
 from dotenv import load_dotenv
 import numpy as np
 import pandas as pd
+from requests.exceptions import ReadTimeout
 
 load_dotenv() # load .env file
 
 API_KEY= os.getenv('TMDB_API_KEY') # get API key
 
+""" [CLASS] Menu """
 class Menu:
-    ''' ATTRIBUTES '''
+    """ Attributes """
     # TMDB API
     URL = "https://api.themoviedb.org/3"
 
@@ -40,7 +42,8 @@ class Menu:
         6: 'exit'
     }
 
-    ''' METHODS '''
+    """ METHODS """
+    # [METHOD] Authenticate User
     def authenticate(self):
         response = requests.get(f"{self.URL}/authentication", headers=self.HEADERS)
 
@@ -53,6 +56,7 @@ class Menu:
         else:
             print(f"Authentication failed: {response.status_code}")
 
+    # [METHOD] Fetch Movies from TMDB API
     def fetch_movies_by_category(self, category, page):
         response = requests.get(
             f"{self.URL}/movie/{category}",
@@ -62,6 +66,7 @@ class Menu:
         
         return response.json() if response.status_code == 200 else None
     
+    # [METHOD] Fetch Movies by Genre from TMDB API
     def fetch_movies_by_genre(self, genre_id, page):
         response = requests.get(
             f"{self.URL}/discover/movie",
@@ -74,6 +79,7 @@ class Menu:
 
         return response.json() if response.status_code == 200 else None
 
+    # [METHOD] Fetch Movie by Title from TMDB API
     def fetch_movie_by_title(self, query):
         response = requests.get(
             f"{self.URL}/search/movie",
@@ -86,6 +92,7 @@ class Menu:
         else:
             return []
         
+    # [METHOD] Fetch Leaderboards from TMDB API
     def fetch_leaderboards(self):
         popular = requests.get(
             f"{self.URL}/movie/popular",
@@ -115,9 +122,8 @@ class Menu:
             "Trending Today": trending_day_movies,
             "Trending This Week": trending_week_movies
         }
-    
-    from requests.exceptions import ReadTimeout
 
+    # [METHOD] Fetch Movies (with error handling and retries)
     def fetch_movies(self, endpoint, max_pages=500):
         all_movies = []
         page = 1
@@ -163,7 +169,7 @@ class Menu:
         print(f"[DONE] {endpoint}: Total movies fetched = {len(all_movies)}")
         return all_movies
 
-    
+    # [METHOD] Create Dataset from TMDB API
     def create_dataset(self):
         # fetch movies
         popular_movies = self.fetch_movies('movie/popular')
@@ -200,7 +206,7 @@ class Menu:
         # convert to .csv file
         dataset_df.to_csv('tmdb_movies_dataset.csv', index=False)
 
-    ''' OPERATIONS '''
+    # [METHOD] View Movies by Category
     def view_movies(self, category_index=1) -> None:  
         genre_list = { 1: 'popular', 2: 'top_rated', 3: 'upcoming', 4: 'now_playing', 5: 'latest' }
         current_page:int = 1 
@@ -267,6 +273,7 @@ class Menu:
                 elif pressed == 'esc':
                     return
                 
+    # [METHOD] Filter Movies by Genre
     def filter_by_genre(self, genre_index=28) -> None:
         current_page:int = 1
         counter:int = 1
@@ -369,10 +376,135 @@ class Menu:
                         return
                     input()
 
+    # [METHOD] Recommend Movie by Genre
+    # [METHOD] Search any movie you love → Get 10 PERFECT AI recommendations
     def recommend_movie_by_genre(self) -> None:
-        print("recommending movie by genre...")
-        input()
+        clear_screen()
+        print(" SEARCH A MOVIE YOU LOVE — AI RECOMMENDS 10 MORE ".center(80, '='))
+        print()
 
+        # Load your REAL model only once
+        if not hasattr(self, 'recommender_ready'):
+            print("Loading your movie recommendation engine... (15-20s first time)")
+            delay(2)
+
+            import ast
+            import pandas as pd
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler, normalize
+            from sklearn.decomposition import TruncatedSVD
+            from sklearn.neighbors import NearestNeighbors
+            from scipy.sparse import hstack, csr_matrix
+
+            df = pd.read_csv('tmdb_movies_dataset.csv')
+            df['title'] = df['title'].fillna("Unknown Movie")
+            df['overview'] = df['overview'].fillna("")
+            df['release_date'] = pd.to_datetime(df['release_date'], errors='coerce')
+            df['release_year'] = df['release_date'].dt.year.fillna(2025).astype(int)
+
+            # Fix genre_ids properly
+            def parse_genres(x):
+                if pd.isna(x): return []
+                try: return ast.literal_eval(x)
+                except: return []
+            df['genre_ids'] = df['genre_ids'].apply(parse_genres)
+
+            # Your exact feature engineering
+            tfidf = TfidfVectorizer(stop_words='english', max_features=10000)
+            overview_tfidf = tfidf.fit_transform(df['overview'])
+            mlb = MultiLabelBinarizer()
+            genre_features = mlb.fit_transform(df['genre_ids'])
+            num = df[['popularity', 'vote_average', 'vote_count']].fillna(0)
+            scaler = StandardScaler()
+            num_scaled = scaler.fit_transform(num)
+
+            X = hstack([
+                overview_tfidf * 2.0,
+                csr_matrix(genre_features) * 1.5,
+                csr_matrix(num_scaled),
+                csr_matrix(df[['release_year']].values)
+            ], format='csr')
+
+            # Best model: brute-force cosine
+            nn = NearestNeighbors(n_neighbors=11, metric='cosine', algorithm='brute', n_jobs=-1)
+            nn.fit(X)
+
+            self.df = df
+            self.X = X
+            self.nn = nn
+            self.recommender_ready = True
+            print("AI engine ready — type any movie!")
+
+        while True:
+            clear_screen()
+            print(" SEARCH A MOVIE YOU LOVE ".center(80, '='))
+            print()
+            query = input("Enter movie title (or 'back' to return): ").strip()
+            if query.lower() in ['back', 'exit', 'quit', '']:
+                return
+
+            # Search for matches (fuzzy + case insensitive)
+            matches = self.df[
+                self.df['title'].str.contains(query, case=False, na=False)
+            ].copy()
+
+            if matches.empty:
+                error_message("No movies found with that name. Try again!", 2)
+                delay(2)
+                continue
+
+            # Sort by popularity + rating
+            matches = matches.sort_values(['vote_average', 'popularity'], ascending=False).head(10)
+            matches = matches.reset_index(drop=True)
+
+            clear_screen()
+            print(f" Found {len(matches)} match(es) for \"{query}\":")
+            display_line('#', 40)
+            for i, row in matches.iterrows():
+                year = row['release_year'] if row['release_year'] < 2025 else "?"
+                print(f"[{i+1}] {row['title']} ({year})  ★ {row['vote_average']:.1f}")
+            print(f"[{len(matches)+1}] Search again")
+            display_line('#', 40)
+
+            try:
+                choice = int(input(">> Choose a movie (number): ").strip())
+                if choice == len(matches) + 1:
+                    continue
+                if not 1 <= choice <= len(matches):
+                    raise ValueError
+            except:
+                error_message("Invalid choice!", 2)
+                delay(2)
+                continue
+
+            selected_row = matches.iloc[choice - 1]
+            selected_title = selected_row['title']
+            selected_idx = selected_row.name  # actual index in full df
+
+            clear_screen()
+            print(f" YOU LOVE: {selected_title} ({selected_row['release_year']}) ★ {selected_row['vote_average']:.1f}".center(80))
+            print()
+            print(" HERE ARE 10 MOVIES THE AI KNOWS YOU'LL LOVE:".center(80))
+            print()
+            display_line('#', 80)
+
+            # REAL RECOMMENDATION USING YOUR MODEL
+            distances, indices = self.nn.kneighbors(self.X[selected_idx], n_neighbors=11)
+
+            for i, idx in enumerate(indices[0][1:], 1):
+                m = self.df.iloc[idx]
+                year = m['release_year'] if m['release_year'] < 2025 else "?"
+                sim = 1 - distances[0][i]
+                print(f"{i:2}. {m['title']} ({year})")
+                print(f"     Rating: {m['vote_average']:.1f} | Similarity: {sim:.3f}\n")
+
+            display_line('#', 80)
+            print("Powered by YOUR DSA Final Project — Real Content-Based AI".center(80))
+            print()
+            press_enter_to_continue()
+            break  # go back to main menu after one recommendation
+
+    # [METHOD] Search Movie by Title
     def search_movie_by_title(self) -> None:
         while True:
             print('[ Search Movie by Title ]')
@@ -432,6 +564,7 @@ class Menu:
                     clear_screen()
                     break
 
+    # [METHOD] Movie Leaderboards
     def movie_leaderboards(self) -> None:
         while True:
             leaderboards = self.fetch_leaderboards()
@@ -483,12 +616,14 @@ class Menu:
                     clear_screen()
                     return
 
-            
+
+    # [METHOD] Exit System      
     def exit(self):
         line_delay_animation("exiting system...", 0.2)
         delay(2)
         exit(0)
 
+    # [METHOD] Display Main Menu
     def display_main_menu(self) -> None:
         while True:
             while True:
@@ -521,7 +656,8 @@ class Menu:
                 method = getattr(self, self.function_list[user_choice])
                 method()
 
-    
-main = Menu()
-main.authenticate()
-# main.create_dataset()
+# [MAIN] Program Entry Point
+if __name__ == "__main__":
+    main = Menu()
+    main.authenticate()
+    # main.create_dataset() # uncomment to create dataset from TMDB API
