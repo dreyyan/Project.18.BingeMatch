@@ -1,30 +1,32 @@
 # ================================================
-# MOVIE RECOMMENDER SYSTEM USING KNN + KD-TREE
+# Movie Recommender System via KNN + KD-TREE
 # TMDB Dataset | Content-Based Filtering
-# DSA Final Project
 # ================================================
 
+# [IMPORT] Standard Libraries
 import time
 import numpy as np
 import pandas as pd
 import ast
-import os
+from collections import Counter
+
+# [IMPORT] Warnings
 import warnings
 warnings.filterwarnings("ignore")
 
+# [IMPORT] Machine Learning Libraries
 from scipy.sparse import load_npz, hstack, csr_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler, normalize
 from sklearn.decomposition import TruncatedSVD
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics.pairwise import cosine_distances
-from collections import Counter
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# ========================
-# 1. LOAD & PREPROCESS DATA
-# ========================
+# ================================================
+# 1. Data Loading & Preprocessing
+# ================================================
 print("Loading TMDB dataset...")
 df_raw = pd.read_csv('tmdb_movies_dataset.csv')
 
@@ -47,9 +49,9 @@ df['genre_ids'] = df['genre_ids'].apply(parse_genres)
 
 print(f"Dataset loaded: {len(df)} movies")
 
-# ========================
-# 2. FEATURE ENGINEERING
-# ========================
+# ================================================
+# 2. Feature Engineering
+# ================================================
 print("Building feature matrix...")
 
 # Text: TF-IDF on overview
@@ -79,18 +81,18 @@ print(f"Final sparse feature matrix: {X_full.shape}")
 # from scipy.sparse import save_npz
 # save_npz("tmdb_features.npz", X_full)
 
-# ========================
-# 3. DENSE REDUCED REPRESENTATION (for KD-Tree)
-# ========================
+# ================================================
+# 3. Dense Reduced Representation (for KD-Tree)
+# ================================================
 print("Computing TruncatedSVD (100 dims) for KD-Tree...")
 svd = TruncatedSVD(n_components=100, random_state=42)
 X_reduced = svd.fit_transform(X_full)
 X_reduced = normalize(X_reduced, norm='l2')  # L2 normalize for cosine-like behavior
 print(f"Explained variance: {svd.explained_variance_ratio_.sum():.3f}")
 
-# ========================
-# 4. MODELS
-# ========================
+# ================================================
+# 4. Models
+# ================================================
 k = 11  # +1 to drop self
 
 # sklearn models
@@ -102,7 +104,7 @@ nn_brute_cosine.fit(X_full)
 nn_kd_tree.fit(X_reduced)
 nn_ball_tree.fit(X_reduced)
 
-# Your raw KNN (improved with vectorized distance)
+# * [CLASS] Raw KNN (improved with vectorized distance)
 class RawKNN:
     def __init__(self, k=10):
         self.k = k
@@ -117,7 +119,7 @@ class RawKNN:
 raw_knn = RawKNN(k=k)
 raw_knn.fit(X_reduced)
 
-# Your KD-Tree (use sklearn if yours has issues in high dim)
+# KD-Tree (use sklearn if issues in high dim)
 try:
     from sklearn.neighbors import KDTree
     kd_tree_custom = KDTree(X_reduced)
@@ -125,9 +127,9 @@ try:
 except:
     kd_tree_custom = None
 
-# ========================
-# 5. RECOMMENDATION FUNCTIONS
-# ========================
+# ================================================
+# 5. Recommendation Functions
+# ================================================
 titles = df['title'].values
 years = df['release_year'].values
 votes = df['vote_average'].fillna(0).values
@@ -179,9 +181,9 @@ def rec_kd_tree(title):
         'score': sims
     })
 
-# ========================
-# 6. TIMING COMPARISON
-# ========================
+# ================================================
+# 6. Timing Comparison
+# ================================================
 def benchmark(titles_list, repeats=3):
     results = []
     for name, func in [
@@ -205,18 +207,18 @@ print("="*70)
 bench_df = benchmark(["Inception", "Dune", "The Matrix", "Interstellar"])
 print(bench_df.round(4))
 
-# ========================
-# 7. FINAL RECOMMENDATIONS
-# ========================
+# ================================================
+# 7. Final Recommendations
+# ================================================
 test_movies = ["Inception", "The Dark Knight", "Dune: Part Two", "Oppenheimer"]
 
 for movie in test_movies:
     print_recommendations(movie, "Best Quality: Brute-Force Cosine (Sparse TF-IDF)", lambda: rec_brute_cosine(movie))
     print_recommendations(movie, "Fast Approximation: KD-Tree (100D)", lambda: rec_kd_tree(movie))
 
-# ========================
-# 8. USER PROFILE BONUS (FIXED)
-# ========================
+# ================================================
+# 8. User Profile
+# ================================================
 def recommend_for_user(liked_movies, top_n=10):
     try:
         idxs = [get_idx(m) for m in liked_movies]
@@ -252,17 +254,17 @@ def recommend_for_user(liked_movies, top_n=10):
     
     return recs
 
-# ========================
-# 9. FINAL DISCUSSION
-# ========================
+# ================================================
+# 9. Evaluation
+# ================================================
 print("\n" + "="*70)
 print(" CONCLUSION & INSIGHTS")
 print("="*70)
 print("""
-Most accurate: Brute-force cosine search using full TF-IDF and genre data.
-Fastest after reduction: KD-Tree or Ball Tree on a 100-dimensional embedding.
-Custom KNN and KD-Tree: Work well on low-dimensional dense data.
-High-dimensional sparse data (>5000D): KD-Tree performance drops, brute-force is better.
-TruncatedSVD: Reduces dimensions while keeping about 80–90% of the similarity information.
-Real-world use: Content-based filtering is used by Netflix, Spotify, and YouTube.
+Most accurate                         : Brute-force cosine search using full TF-IDF and genre data.
+Fastest after reduction               : KD-Tree or Ball Tree on a 100-dimensional embedding.
+Custom KNN and KD-Tree                : Work well on low-dimensional dense data.
+High-dimensional sparse data (>5000D) : KD-Tree performance drops, brute-force is better.
+TruncatedSVD                          : Reduces dimensions while keeping about 80–90% of the similarity information.
+Real-world use                        : Content-based filtering is used by Netflix, Spotify, and YouTube.
 """)
