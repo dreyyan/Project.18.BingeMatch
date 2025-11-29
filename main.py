@@ -1,49 +1,55 @@
-""" [IMPORT] Modules """
-from modules.character_delay_animation import character_delay_animation
+""" [IMPORT] Utility Modules """
 from modules.clear_screen import clear_screen
 from modules.display_format import display_format
 from modules.delay import delay
-from modules.display_function import display_function
-from modules.display_header import display_header
-from modules.display_line import display_line
 from modules.error_message import error_message
-from modules.insert_spaces import insert_spaces
 from modules.line_delay_animation import line_delay_animation
-from modules.press_enter_to_continue import press_enter_to_continue
 
-''' [IMPORT] Standard Libraries '''
+""" [IMPORT] Standard Libraries """
 import requests, os, keyboard
 from dotenv import load_dotenv
 import numpy as np
 import pandas as pd
+import textwrap
 from requests.exceptions import ReadTimeout
+from datetime import datetime
 
+""" [IMPORT] Machine Learning Libraries """
+import ast
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler, normalize
+from sklearn.decomposition import TruncatedSVD
+from sklearn.neighbors import NearestNeighbors
+from scipy.sparse import hstack, csr_matrix
+
+""" [LOAD] Environment Variables """
 load_dotenv() # load .env file
-
 API_KEY= os.getenv('TMDB_API_KEY') # get API key
 
-""" [CLASS] Menu """
+""" Settings """
+SYSTEM_TITLE = "BingeMatch"
+SYSTEM_VERSION = "v1.0"
+SYSTEM_CONSOLE_WIDTH = 50
+SYSTEM_DEFAULT_DELAY = 0.05
+
+# [CLASS] Menu System
 class Menu:
     """ Attributes """
-    # TMDB API
+    # * TMDB API Base URL & Headers
     URL = "https://api.themoviedb.org/3"
-
-    HEADERS = {
-        "accept": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
-
-    function_list = {
+    HEADERS = { "accept": "application/json", "Authorization": f"Bearer {API_KEY}" }
+    FUNCTION_LIST = {
+        0: 'exit',
         1: 'view_movies',
         2: 'filter_by_genre',
         3: 'recommend_movie_by_genre',
         4: 'search_movie_by_title',
-        5: 'movie_leaderboards',
-        6: 'exit'
+        5: 'movie_leaderboards'
     }
 
-    """ METHODS """
-    # [METHOD] Authenticate User
+    """ Methods: Helpers for TMDB API interactions and Menu System """
+    # [METHOD: Helper] Authenticate User
     def authenticate(self):
         response = requests.get(f"{self.URL}/authentication", headers=self.HEADERS)
 
@@ -56,7 +62,7 @@ class Menu:
         else:
             print(f"Authentication failed: {response.status_code}")
 
-    # [METHOD] Fetch Movies from TMDB API
+    # [METHOD: Helper] Fetch Movies from TMDB API
     def fetch_movies_by_category(self, category, page):
         response = requests.get(
             f"{self.URL}/movie/{category}",
@@ -66,7 +72,7 @@ class Menu:
         
         return response.json() if response.status_code == 200 else None
     
-    # [METHOD] Fetch Movies by Genre from TMDB API
+    # [METHOD: Helper] Fetch Movies by Genre from TMDB API
     def fetch_movies_by_genre(self, genre_id, page):
         response = requests.get(
             f"{self.URL}/discover/movie",
@@ -79,7 +85,7 @@ class Menu:
 
         return response.json() if response.status_code == 200 else None
 
-    # [METHOD] Fetch Movie by Title from TMDB API
+    # [METHOD: Helper] Fetch Movie by Title from TMDB API
     def fetch_movie_by_title(self, query):
         response = requests.get(
             f"{self.URL}/search/movie",
@@ -92,7 +98,7 @@ class Menu:
         else:
             return []
         
-    # [METHOD] Fetch Leaderboards from TMDB API
+    # [METHOD: Helper] Fetch Leaderboards from TMDB API
     def fetch_leaderboards(self):
         popular = requests.get(
             f"{self.URL}/movie/popular",
@@ -123,7 +129,7 @@ class Menu:
             "Trending This Week": trending_week_movies
         }
 
-    # [METHOD] Fetch Movies (with error handling and retries)
+    # [METHOD: Helper] Fetch Movies (with error handling and retries)
     def fetch_movies(self, endpoint, max_pages=500):
         all_movies = []
         page = 1
@@ -169,7 +175,7 @@ class Menu:
         print(f"[DONE] {endpoint}: Total movies fetched = {len(all_movies)}")
         return all_movies
 
-    # [METHOD] Create Dataset from TMDB API
+    # [METHOD: Helper] Create Dataset from TMDB API
     def create_dataset(self):
         # fetch movies
         popular_movies = self.fetch_movies('movie/popular')
@@ -206,45 +212,88 @@ class Menu:
         # convert to .csv file
         dataset_df.to_csv('tmdb_movies_dataset.csv', index=False)
 
+    # [METHOD: Helper] Print Centered Text
+    def print_center(self, text: str, width: int) -> None:
+        if len(text) >= width:
+            print(text)
+            return
+        
+        padding = (width - len(text)) // 2
+        print(" " * padding + text)
+
+    # [METHOD: Helper] Print Centered Text with Fill Symbol 
+    def print_center_filled(self, text: str, symbol: str, width: int) -> None:
+        if len(text) >= width:
+            print(text)
+            return
+        
+        padding = (width - len(text)) // 2
+        print(symbol * padding + text + symbol * padding)
+
+    # [METHOD: Helper] Truncate Movie Title
+    def truncate_movie_title(self, title: str, offset: int) -> str:
+        if len(title) + offset <= SYSTEM_CONSOLE_WIDTH:
+            return title
+        return title[:SYSTEM_CONSOLE_WIDTH - offset] + "..."
+    
+    """ Methods: UI """
+    # [METHOD: UI] Display System Header
+    def display_header(self, ms_delay: float) -> None:
+        line_delay_animation(f"`~`~`~`~`~`~`~`~` [ {SYSTEM_TITLE} ] `~`~`~`~`~`~`~`~`", ms_delay)
+
+    # [METHOD: UI] Display System Version
+    def display_version(self, ms_delay: float) -> None:
+        line_delay_animation(F"###################### {SYSTEM_VERSION} ######################", ms_delay)
+
+    """ Methods: Menu System Functionalities """
     # [METHOD] View Movies by Category
     def view_movies(self, category_index=1) -> None:  
         genre_list = { 1: 'popular', 2: 'top_rated', 3: 'upcoming', 4: 'now_playing', 5: 'latest' }
         current_page:int = 1 
         category:str = genre_list[category_index]
         
+        # This loop handles category and page navigation
         while True:
+            # fetch movies for the current category and page
             response = self.fetch_movies_by_category(category, current_page)
 
+            # ! [ERROR] Failed to fetch movies
             if response is None:
                 error_message("Failed to fetch movies", 2)
                 return
             
+            # get movies list
             movies=response.get('results', [])
 
-            # show header
-            clear_screen()
             category_display = category.replace('_', ' ').title()
-            header_length:int = 19 + len(category_display)
-            space_length:int = int(((header_length - len(category) - 6) / 2))
+            space_length:int = int(((SYSTEM_CONSOLE_WIDTH - len(category) - 6) / 2))
 
-            print(f"[ List of {category_display} Movies ]")
-            display_format('#', header_length)
+            # display UI
+            clear_screen()
+            self.display_header(0.1)
+            self.display_version(0.1)
+            self.print_center_filled(f" List of {category_display} Movies ", '=', SYSTEM_CONSOLE_WIDTH)
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
+
+            # show category with arrows
             print(f"[^]{' ' * space_length}{category_display}{' ' * space_length}[v]")
-            display_format('#', header_length)
+            display_format('=', SYSTEM_CONSOLE_WIDTH)
 
             # show movies list
-            counter:int = 1 + 20 * (current_page - 1)
-            for movie in movies[:20]:
-                print(f"[{counter}] {movie['title']}", )
+            counter:int = 1 + 10 * (current_page - 1)
+            for movie in movies[:10]:
+                if counter < 10:
+                    print(f"  ", end="")
+                else: print(f" ", end="")
+                line_delay_animation(f"[{counter}] {self.truncate_movie_title(movie['title'], 9)}", SYSTEM_DEFAULT_DELAY)
                 counter += 1
-
-            print("(ESC) Return")
+            line_delay_animation("[ESC] Return", SYSTEM_DEFAULT_DELAY)
 
             # show navigation bar
-            navigation_bar:str = f"[<] {' ' if current_page == 1 else current_page - 1}       [{current_page}]       {current_page + 1} [>]"
-            display_format('#', len(navigation_bar))
+            navigation_bar:str = f"[<] {' ' if current_page == 1 else current_page - 1}                  [{current_page}]                  {current_page + 1} [>]"
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
             print(navigation_bar)
-            display_format('#', len(navigation_bar))
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
 
             while True:
                 pressed = keyboard.read_key() # listen for key event
@@ -257,27 +306,26 @@ class Menu:
                 if pressed == 'right':
                     current_page += 1
                     break
+                # Press [^] - Move one category down
                 if pressed == 'up':
                     current_page = 1 # reset page
                     if category_index > 1:
                         category_index -= 1
                         category=genre_list[category_index]
                         break
+                # Press [V] - Move one category up
                 if pressed == 'down':
                     current_page = 1 # reset page
                     if category_index < 5:
                         category_index += 1
                         category=genre_list[category_index]
                     break
-                # Press ESC - Return to main menu
+                # Press [ESC] - Return to main menu
                 elif pressed == 'esc':
                     return
                 
     # [METHOD] Filter Movies by Genre
-    def filter_by_genre(self, genre_index=28) -> None:
-        current_page:int = 1
-        counter:int = 1
-
+    def filter_by_genre(self) -> None:
         genre_list = {
             28: "Action",
             12: "Adventure",
@@ -300,101 +348,142 @@ class Menu:
             37: "Western"
         }
 
-        # map genre ids and names
-        genre_ids = list(genre_list.keys())
+        genre_ids   = list(genre_list.keys())
         genre_names = list(genre_list.values())
 
+        GENRES_PER_PAGE = 10
+        total_pages = 2
+        genre_page = 1
+
         while True:
-            # display header
-            print(f"[ Filter by Genre ]")
-            display_format('#', 19)
+            # display UI
+            clear_screen()
+            self.display_header(0.1)
+            self.display_version(0.1)
+            self.print_center_filled(" Filter by Genre ", '=', SYSTEM_CONSOLE_WIDTH)
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
 
-            # display genre list
-            for index, name in enumerate(genre_names, start=1):
-                print(f"[{index}] {name}")
+            start = (genre_page - 1) * GENRES_PER_PAGE
+            end   = start + GENRES_PER_PAGE
 
-            print(f"[20] Back")
+            page_genres = list(enumerate(
+                genre_names[start:end],
+                start=start + 1
+            ))
 
-            try:
-                genre_choice = int(input(">> ").strip())
-                if genre_choice == 20: # return to menu
-                    return
-                if genre_choice < 1 or genre_choice > len(genre_list):
-                    error_message("Invalid input, please enter a valid genre choice", 2)
-                
-            except ValueError as e:
-                error_message(e, 2)
+            # show genres list
+            for idx, name in page_genres:
+                if idx < 10: print("  ", end="")
+                else: print(" ", end="")
+                line_delay_animation(f"[{idx}] {name}", SYSTEM_DEFAULT_DELAY)
+            print("[ESC] Return")
+
+
+            # show navigation bar
+            navigation_bar = f"[<] {' ' if genre_page == 1 else genre_page - 1}                  [{genre_page}]                  {' ' if genre_page == total_pages else genre_page + 1} [>]"
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
+            print(navigation_bar)
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
+
+            pressed = keyboard.read_key() # listen for key event
+
+            # Press [<] - Move one page down
+            if pressed == "left" and genre_page > 1:
+                genre_page -= 1
+                continue
+
+            # Press [>] - Move one page up
+            if pressed == "right" and genre_page < total_pages:
+                genre_page += 1
+                continue
+
+            # Press [ESC] - Return to main menu
+            if pressed == "esc":
                 return
 
-            selected_genre_id = genre_ids[genre_choice - 1]
-            selected_genre_name = genre_list[selected_genre_id]
-            
+            # Genre selection
+            if pressed.isdigit(): # type: ignore
+                genre_idx = int(pressed)
+
+                # ! [ERROR] Invalid genre selection
+                if genre_idx < 1 or genre_idx > len(page_genres):
+                    error_message("Invalid genre selection", 2)
+                    continue
+
+                actual_index = start + genre_idx - 1
+                selected_genre_id   = genre_ids[actual_index]
+                selected_genre_name = genre_names[actual_index]
+
+            else: continue
+
+            # Display movies of selected genre
+            current_page = 1
+
+            # This loop handles paging within the selected genre
             while True:
+                # display UI
+                clear_screen()
+                self.display_header(0.1)
+                self.display_version(0.1)
+
+                # fetch movies for the selected genre and page
                 response = self.fetch_movies_by_genre(selected_genre_id, current_page)
- 
+
+                # ! [ERROR] Failed to fetch movies
                 if response is None:
                     error_message("Failed to fetch movies", 2)
                     return
-                
+
+                # get movies list
                 movies = response.get('results', [])
-                    
-                # show header
-                clear_screen()
-                header_length:int = 19 + len(selected_genre_name)
-                space_length:int = int(((header_length - len(selected_genre_name) - 6) / 2))
 
-                print(f"[ List of {selected_genre_name} Movies ]")
-                display_format('#', header_length)
+                self.print_center_filled(f" List of {selected_genre_name} Movies ", '=', SYSTEM_CONSOLE_WIDTH)
+                display_format('#', SYSTEM_CONSOLE_WIDTH)
 
-                # show movies list from specified genre
-                counter:int = 1 + 20 * (current_page - 1)
-                for movie in movies[:20]:
-                    print(f"[{counter}] {movie['title']}")
+                counter = 1 + 10 * (current_page - 1)
+
+                for movie in movies[:10]:
+                    if counter < 10:
+                        print(f"  ", end="")
+                    else: print(f" ", end="")
+                    line_delay_animation(f"[{counter}] {self.truncate_movie_title(movie['title'], 9)}", SYSTEM_DEFAULT_DELAY)
                     counter += 1
-
-                print(f"(ESC) Return")
+                print("[ESC] Return")
 
                 # show navigation bar
-                navigation_bar:str = f"[<] {' ' if current_page == 1 else current_page - 1}       [{current_page}]       {current_page + 1} [>]"
-                display_format('#', len(navigation_bar))
+                navigation_bar = f"[<] {' ' if current_page == 1 else current_page - 1}                  [{current_page}]                  {current_page + 1} [>]"
+                display_format('#', SYSTEM_CONSOLE_WIDTH)
                 print(navigation_bar)
-                display_format('#', len(navigation_bar))
+                display_format('#', SYSTEM_CONSOLE_WIDTH)
 
                 while True:
-                    pressed = keyboard.read_key() # listen for key event
-                    
-                    # Press [<] - Move one page down
+                    pressed = keyboard.read_key()
+
+                    # Same paging behavior as view_movies
                     if pressed == 'left' and current_page > 1:
                         current_page -= 1
                         break
-                    # Press [>] - Move one page up
+
                     if pressed == 'right':
                         current_page += 1
                         break
-                    # Press ESC - Return to main menu
+
                     if pressed == 'esc':
-                        return
-                    input()
+                        break
 
     # [METHOD] Recommend Movie by Genre
-    # [METHOD] Search any movie you love → Get 10 PERFECT AI recommendations
     def recommend_movie_by_genre(self) -> None:
+        # display UI
         clear_screen()
-        print(" SEARCH A MOVIE YOU LOVE — AI RECOMMENDS 10 MORE ".center(80, '='))
-        print()
+        self.display_header(0.1)
+        self.display_version(0.1)
+        self.print_center_filled(f" Movie Recommender ", '=', SYSTEM_CONSOLE_WIDTH)
+        display_format('#', SYSTEM_CONSOLE_WIDTH)
 
         # Load your REAL model only once
         if not hasattr(self, 'recommender_ready'):
-            print("Loading your movie recommendation engine... (15-20s first time)")
+            print("[INFO] Loading movie recommendation model...")
             delay(2)
-
-            import ast
-            import pandas as pd
-            from sklearn.feature_extraction.text import TfidfVectorizer
-            from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler, normalize
-            from sklearn.decomposition import TruncatedSVD
-            from sklearn.neighbors import NearestNeighbors
-            from scipy.sparse import hstack, csr_matrix
 
             df = pd.read_csv('tmdb_movies_dataset.csv')
             df['title'] = df['title'].fillna("Unknown Movie")
@@ -436,10 +525,15 @@ class Menu:
             print("AI engine ready — type any movie!")
 
         while True:
+            # display UI
             clear_screen()
-            print(" SEARCH A MOVIE YOU LOVE ".center(80, '='))
-            print()
-            query = input("Enter movie title (or 'back' to return): ").strip()
+            self.display_header(0.1)
+            self.display_version(0.1)
+            self.print_center_filled(f" Movie Recommender ", '=', SYSTEM_CONSOLE_WIDTH)
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
+
+            # prompt user to enter a movie title to search
+            query = input("Seaarch for a movie: ").strip()
             if query.lower() in ['back', 'exit', 'quit', '']:
                 return
 
@@ -448,121 +542,207 @@ class Menu:
                 self.df['title'].str.contains(query, case=False, na=False)
             ].copy()
 
+            # ! [ERROR]: No movies found
             if matches.empty:
                 error_message("No movies found with that name. Try again!", 2)
-                delay(2)
                 continue
 
             # Sort by popularity + rating
             matches = matches.sort_values(['vote_average', 'popularity'], ascending=False).head(10)
             matches = matches.reset_index(drop=True)
 
+            # display UI
             clear_screen()
-            print(f" Found {len(matches)} match(es) for \"{query}\":")
-            display_line('#', 40)
+            self.display_header(0.1)
+            self.display_version(0.1)
+            self.print_center_filled(f" Found {len(matches)} match(es) for \"{query}\": ", '=', SYSTEM_CONSOLE_WIDTH)
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
+
             for i, row in matches.iterrows():
                 year = row['release_year'] if row['release_year'] < 2025 else "?"
-                print(f"[{i+1}] {row['title']} ({year})  ★ {row['vote_average']:.1f}")
+                # prepare the left part: "[1] Movie Title (2025)"
+                left_part = f"[{i+1}] {self.truncate_movie_title(row['title'], 22)} ({year})"
+                # prepare the right part: "★ 8.7"
+                right_part = f"★ {row['vote_average']:.1f}"
+                
+                # calculate remaining spaces
+                space_count = SYSTEM_CONSOLE_WIDTH - len(left_part) - len(right_part)
+                spaces = " " * max(space_count, 1)  # at least one space
+
+                # final line
+                movie_line = f"{left_part}{spaces}{right_part}"
+                line_delay_animation(movie_line, SYSTEM_DEFAULT_DELAY)
+    
             print(f"[{len(matches)+1}] Search again")
-            display_line('#', 40)
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
 
             try:
-                choice = int(input(">> Choose a movie (number): ").strip())
+                choice = int(input("Choose a movie: ").strip())
                 if choice == len(matches) + 1:
                     continue
                 if not 1 <= choice <= len(matches):
                     raise ValueError
             except:
-                error_message("Invalid choice!", 2)
-                delay(2)
+                error_message("\nInvalid choice", 2)
                 continue
 
             selected_row = matches.iloc[choice - 1]
-            selected_title = selected_row['title']
             selected_idx = selected_row.name  # actual index in full df
 
+            # display UI
             clear_screen()
-            print(f" YOU LOVE: {selected_title} ({selected_row['release_year']}) ★ {selected_row['vote_average']:.1f}".center(80))
-            print()
-            print(" HERE ARE 10 MOVIES THE AI KNOWS YOU'LL LOVE:".center(80))
-            print()
-            display_line('#', 80)
+            self.display_header(0.1)
+            self.display_version(0.1)
+            self.print_center_filled(f" Movie Recommender ", '=', SYSTEM_CONSOLE_WIDTH)
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
+            movie = f"\"{selected_row['title']} ({selected_row['release_year']})\" ★ {selected_row['vote_average']:.1f}"
+            self.print_center(f"You like: {self.truncate_movie_title(movie, 13)}", SYSTEM_CONSOLE_WIDTH)
+            self.print_center("AI recommends these 10 movies for your next watch:", SYSTEM_CONSOLE_WIDTH)
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
 
-            # REAL RECOMMENDATION USING YOUR MODEL
             distances, indices = self.nn.kneighbors(self.X[selected_idx], n_neighbors=11)
 
+            # display AI recommended movies
             for i, idx in enumerate(indices[0][1:], 1):
                 m = self.df.iloc[idx]
                 year = m['release_year'] if m['release_year'] < 2025 else "?"
                 sim = 1 - distances[0][i]
-                print(f"{i:2}. {m['title']} ({year})")
-                print(f"     Rating: {m['vote_average']:.1f} | Similarity: {sim:.3f}\n")
+                
+                # Properly truncate the recommended movie title
+                rec_title = self.truncate_movie_title(f"{i:2}. {m['title']}", 7)
+                
+                line_delay_animation(f"{rec_title} ({year})", SYSTEM_DEFAULT_DELAY)
+                line_delay_animation(f"    Rating: ★ {m['vote_average']:.1f} | Similarity: {sim:.3f}", SYSTEM_DEFAULT_DELAY)
+                display_format('=', SYSTEM_CONSOLE_WIDTH)
 
-            display_line('#', 80)
-            print("Powered by YOUR DSA Final Project — Real Content-Based AI".center(80))
-            print()
-            press_enter_to_continue()
-            break  # go back to main menu after one recommendation
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
+            print("[ESC] Return")
+
+            while True:
+                pressed = keyboard.read_key()
+                if pressed == 'esc':
+                    break
 
     # [METHOD] Search Movie by Title
     def search_movie_by_title(self) -> None:
         while True:
-            print('[ Search Movie by Title ]')
-            display_format('#', 25)
-            search_query = input("Search for: ").strip()
+            # display UI
+            clear_screen()
+            self.display_header(0.1)
+            self.display_version(0.1)
+            self.print_center_filled(f" Search Movie by Title ", '=', SYSTEM_CONSOLE_WIDTH)
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
+
+            # prompt user to enter movie title to search
+            search_query = input("Search for a movie: ").strip()
             movies = self.fetch_movie_by_title(search_query)
 
             if movies is None:
                 error_message("No movies found.", 2)
 
-            clear_screen()
-            print('[ Search Movie by Title ]')
-            display_format('#', 25) 
-            print("#    Search Results:    #")
-            display_format('#', 25)
-
-            # display top 10 search results
-            for idx, movie in enumerate(movies[:10], start=1):  # Limit to first 10 results
-                print(f"[{idx}] {movie.get('title', 'N/A')} ({movie.get('release_date', 'N/A')})")
-
-            print(f"[11] << Back")
-            display_format('#', 25)
-
+            # display results
             while True:
-                try:
-                    selection = int(input(">> ").strip())
+                clear_screen()
+                self.display_header(0.1)
+                self.display_version(0.1)
+                self.print_center_filled(" Search Results ", '=', SYSTEM_CONSOLE_WIDTH)
+                display_format('#', SYSTEM_CONSOLE_WIDTH)
 
-                    if selection == 11: # return to main menu
-                        return
-                    if selection not in [x for x in range(1, 11)]:
-                        error_message("Invalid input, please enter a valid movie choice", 3)
-
+                # show top 10 results
+                for idx, movie in enumerate(movies[:10], start=1):
+                    if idx < 10:
+                        print("  ", end="")
                     else:
-                        selected_movie = movies[selection - 1]
-                        break
+                        print(" ", end="")
 
-                except ValueError as e:
-                    error_message(e, 2)
+                    title = movie.get('title', 'N/A')
+                    date = movie.get('release_date', 'N/A')
+                    line_delay_animation(
+                        f"[{idx}] {self.truncate_movie_title(title)} ({date})",
+                        SYSTEM_DEFAULT_DELAY,
+                    )
 
-            # display movie details
-            clear_screen()
-            print(f"[ {selected_movie.get('title', 'N/A')} ]")
-            
-            print(f"Overview     : {selected_movie.get('overview', 'N/A')}")
-            print(f"Release Date : {selected_movie.get('release_date', 'N/A')}")
-            print(f"Language     : {selected_movie.get('original_language', 'N/A')}")
-            print(f"Popularity   : {selected_movie.get('popularity', 'N/A')}")
-            print(f"Vote Average : {selected_movie.get('vote_average', 'N/A')}")
-            print(f"Vote Count   : {selected_movie.get('vote_count', 'N/A')}")
-            print(f"Genres (IDs)  : {selected_movie.get('genre_ids', [])}")
-            
-            while True:
-                pressed = keyboard.read_key() # listen for key event
-                
-                # Press ESC - Return to main menu
-                if pressed == 'esc':
+                print("[ESC] Return")
+
+                display_format('#', SYSTEM_CONSOLE_WIDTH)
+
+                # ----- KEY INPUT -----
+                pressed: str = keyboard.read_key()
+
+                # EXIT search
+                if pressed == "esc":
+                    return
+
+                # MOVIE SELECTION
+                if pressed.isdigit():   # type: ignore
+                    selection = int(pressed)
+
+                    if selection < 1 or selection > len(movies[:10]):
+                        error_message("Invalid movie selection", 2)
+                        continue
+
+                    selected_movie = movies[selection - 1]
+                else:
+                    continue
+
+                # ----- MOVIE DETAILS VIEW -----
+                while True:
                     clear_screen()
-                    break
+                    self.display_header(0.1)
+                    self.display_version(0.1)
+                    self.print_center_filled(
+                        f" {selected_movie.get('title','N/A')} ",
+                        '=',
+                        SYSTEM_CONSOLE_WIDTH,
+                    )
+                    display_format('#', SYSTEM_CONSOLE_WIDTH)
+
+                    # wrap overview content
+                    overview = selected_movie.get('overview', 'N/A')
+                    wrapped_overview = textwrap.fill(
+                        overview,
+                        width=50,
+                        initial_indent="    Overview : ",
+                        subsequent_indent="               "
+                    )
+
+                    # format date
+                    release_date_str = selected_movie.get('release_date', 'N/A')
+                    if release_date_str != 'N/A':
+                        try:
+                            dt = datetime.strptime(release_date_str, "%Y-%m-%d")
+                            formatted_date = dt.strftime("%b %d, %Y")
+                        except ValueError:
+                            formatted_date = release_date_str
+                    else: formatted_date = release_date_str
+
+                    # format language
+                    language_code = selected_movie.get('original_language', 'N/A')
+                    language_map = {
+                        "en": "English (EN)",
+                        "fr": "French (FR)",
+                        "es": "Spanish (ES)",
+                        "ja": "Japanese (JA)",
+                        "ko": "Korean (KO)"
+                    }
+                    formatted_language = language_map.get(language_code, language_code)
+
+                    # display movie information
+                    print(wrapped_overview)
+                    print(f"Release Date : {formatted_date}")
+                    print(f"    Language : {formatted_language}")
+                    print(f"  Popularity : {selected_movie.get('popularity', 'N/A')}")
+                    print(f"Vote Average : {selected_movie.get('vote_average', 'N/A')}")
+                    print(f"  Vote Count : {selected_movie.get('vote_count', 'N/A')}")
+                    print(f"Genres (IDs) : {selected_movie.get('genre_ids', [])}")
+                    display_format('#', SYSTEM_CONSOLE_WIDTH)
+                    print("[ESC] Back")
+
+                    pressed = keyboard.read_key()
+
+                    # return to search results
+                    if pressed == "esc":
+                        break
 
     # [METHOD] Movie Leaderboards
     def movie_leaderboards(self) -> None:
@@ -580,7 +760,6 @@ class Menu:
 
             # show header
             clear_screen()
-            header_length:int = 26
             counter:int = 1
 
             categories = [
@@ -597,21 +776,25 @@ class Menu:
                 top_3_trending_weekly
             ]
 
-            print(f"{5 * ' '}[ LEADERBOARDS ]")
-            display_format('#', header_length)
+            # display UI
+            clear_screen()
+            self.display_header(0.1)
+            self.display_version(0.1)
+            self.print_center_filled(f" Leaderboards ", '=', SYSTEM_CONSOLE_WIDTH)
+            display_format('#', SYSTEM_CONSOLE_WIDTH)
 
+            # display top 3 per category
             for category, top_movies in zip(categories, top_lists):
-                print(f"[ Top 3 {category} ]")
+                self.print_center_filled(f" Top 3 {category} ", '=', SYSTEM_CONSOLE_WIDTH)
                 for idx, movie in enumerate(top_movies, start=1):
-                    print(f"[{idx}] {movie.get('title', 'N/A')}")
-                display_format('#', header_length)
-
-            print("(ESC) Return")
+                    line_delay_animation(f"{idx}. {movie.get('title', 'N/A')}", SYSTEM_DEFAULT_DELAY)
+            display_format('=', SYSTEM_CONSOLE_WIDTH)
+            print("[ESC] Return")
 
             while True:
                 pressed = keyboard.read_key() # listen for key event
                 
-                # Press ESC - Return to main menu
+                # Press [ESC] - Return to main menu
                 if pressed == 'esc':
                     clear_screen()
                     return
@@ -619,8 +802,6 @@ class Menu:
 
     # [METHOD] Exit System      
     def exit(self):
-        line_delay_animation("exiting system...", 0.2)
-        delay(2)
         exit(0)
 
     # [METHOD] Display Main Menu
@@ -629,20 +810,21 @@ class Menu:
             while True:
                 clear_screen()
                 
-                line_delay_animation("`~`~`~ [ BingeMatch ] ~`~`~`", 0.1)
-                display_format('#', 28)
+                self.display_header(0.1)
+                self.display_version(0.1)
+                display_format('=', 50)
+                line_delay_animation("[0] | Exit", 0.1)
                 line_delay_animation("[1] | View Movies", 0.1)
                 line_delay_animation("[2] | Filter by Genre", 0.1)
                 line_delay_animation("[3] | Recommend Movie by Genre", 0.1)
                 line_delay_animation("[4] | Search Movie by Title", 0.1)
                 line_delay_animation("[5] | Movie Leaderboards", 0.1)
-                line_delay_animation("[6] | Exit", 0.1)
-                display_format('#', 28)
+                display_format('=', 50)
 
                 try:
                     user_choice = int(input(">> ").strip())
                     
-                    if user_choice not in [i for i in range(1, 7)]:
+                    if user_choice not in [i for i in range(0, 6)]:
                         error_message("Invalid input, please enter a valid choice", 2)
                     else:
                         clear_screen()
@@ -652,8 +834,8 @@ class Menu:
                     error_message(f": {e}", 2)
 
             # invoke function based on mapped function list 
-            if hasattr(self, self.function_list[user_choice]):
-                method = getattr(self, self.function_list[user_choice])
+            if hasattr(self, self.FUNCTION_LIST[user_choice]):
+                method = getattr(self, self.FUNCTION_LIST[user_choice])
                 method()
 
 # [MAIN] Program Entry Point
