@@ -376,7 +376,7 @@ class Menu:
                 if idx < 10: print("  ", end="")
                 else: print(" ", end="")
                 line_delay_animation(f"[{idx}] {name}", SYSTEM_DEFAULT_DELAY)
-            print("[ESC] Return")
+            print("[ESC] Return", end='')
 
 
             # show navigation bar
@@ -448,7 +448,7 @@ class Menu:
                     else: print(f" ", end="")
                     line_delay_animation(f"[{counter}] {self.truncate_movie_title(movie['title'], 9)}", SYSTEM_DEFAULT_DELAY)
                     counter += 1
-                print("[ESC] Return")
+                print("[ESC] Return", end='')
 
                 # show navigation bar
                 navigation_bar = f"[<] {' ' if current_page == 1 else current_page - 1}                  [{current_page}]                  {current_page + 1} [>]"
@@ -616,7 +616,7 @@ class Menu:
                 display_format('=', SYSTEM_CONSOLE_WIDTH)
 
             display_format('#', SYSTEM_CONSOLE_WIDTH)
-            print("[ESC] Return")
+            print("[ESC] Return", end='')
 
             while True:
                 pressed = keyboard.read_key()
@@ -658,11 +658,11 @@ class Menu:
                     title = movie.get('title', 'N/A')
                     date = movie.get('release_date', 'N/A')
                     line_delay_animation(
-                        f"[{idx}] {self.truncate_movie_title(title)} ({date})",
+                        f"[{idx}] {self.truncate_movie_title(title, 22)} ({date})",
                         SYSTEM_DEFAULT_DELAY,
                     )
 
-                print("[ESC] Return")
+                print("[ESC] Return", end='')
 
                 display_format('#', SYSTEM_CONSOLE_WIDTH)
 
@@ -736,7 +736,7 @@ class Menu:
                     print(f"  Vote Count : {selected_movie.get('vote_count', 'N/A')}")
                     print(f"Genres (IDs) : {selected_movie.get('genre_ids', [])}")
                     display_format('#', SYSTEM_CONSOLE_WIDTH)
-                    print("[ESC] Back")
+                    print("[ESC] Back", end='')
 
                     pressed = keyboard.read_key()
 
@@ -789,7 +789,7 @@ class Menu:
                 for idx, movie in enumerate(top_movies, start=1):
                     line_delay_animation(f"{idx}. {movie.get('title', 'N/A')}", SYSTEM_DEFAULT_DELAY)
             display_format('=', SYSTEM_CONSOLE_WIDTH)
-            print("[ESC] Return")
+            print("[ESC] Return", end='')
 
             while True:
                 pressed = keyboard.read_key() # listen for key event
